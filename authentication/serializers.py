@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+
+from TaskManagement import settings
 
 User = get_user_model()
 
@@ -23,4 +26,20 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data["password"],
             role=validated_data["role"],
         )
+
+        self.send_verification_email(user)
         return user
+    
+    def send_verification_email(self, user):
+        verify_url = (
+            f"http://localhost:8000/api/auth/verify-email/"
+            f"{user.email_verification_token}/"
+        )
+        print("Mail Sent")
+        send_mail(
+            subject="Verify your email",
+            message=f"Click the link to verify your email:\n{verify_url}",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )

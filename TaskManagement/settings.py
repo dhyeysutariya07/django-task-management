@@ -40,10 +40,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+
     'authentication',
     'rest_framework',
     "rest_framework.authtoken",
     "rest_framework_simplejwt.token_blacklist",
+    "drf_spectacular",
+    "tasks",
+    "notifications"
 
 ]
 
@@ -55,9 +60,15 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    'tasks.middlewares.PriorityEscalationMiddleware',
+    "tasks.middlewares.SuccessfulRequestCountingMiddleware",
 ]
 
 ROOT_URLCONF = 'TaskManagement.urls'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 
 TEMPLATES = [
     {
@@ -115,7 +126,31 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.UserRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "user": "1000/day",           # default rate for normal users
+        "task_read": "5/min",         # used by AuditorReadBypassThrottle
+    },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    "EXCEPTION_HANDLER": "tasks.exceptions.custom_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "tasks.throttles.RoleBasedThrottle",
+    ],
 }
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Task Management API',
+    'DESCRIPTION': 'API documentation for my project',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
