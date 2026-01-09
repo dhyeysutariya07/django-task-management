@@ -10,7 +10,7 @@ from tasks.models import Task
 from django.db import transaction
 from rest_framework import status
 from authentication.permissions import IsEmailVerified
-from .throttles import AuditorReadBypassThrottle
+from .throttles import RoleBasedThrottle
 from .serializers import BulkTaskUpdateSerializer, TaskReadSerializer
 from .serializers import TaskHistorySerializer, TaskWriteSerializer
 from .permissions import AuditorWriteForbidden, TemporalTaskUpdatePermission
@@ -21,7 +21,7 @@ from .models import Task, TaskHistory
 class TaskViewSet(ModelViewSet):
     queryset = Task.objects.all()
     permission_classes = [IsAuthenticated, IsEmailVerified,AuditorWriteForbidden]
-    throttle_classes = [AuditorReadBypassThrottle]
+    throttle_classes = [RoleBasedThrottle]
 
     def get_permissions(self):
         permissions = super().get_permissions()

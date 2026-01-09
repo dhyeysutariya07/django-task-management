@@ -86,7 +86,12 @@ export const EmailVerification: React.FC = () => {
                         style={{ width: '100%' }}
                         disabled={isLoading}
                     >
-                        {isLoading ? 'Verifying...' : 'Verify Email'}
+                        {isLoading ? (
+                            <span className="loading-text">
+                                <div className="spinner"></div>
+                                Verifying...
+                            </span>
+                        ) : 'Verify Email'}
                     </button>
                 </form>
 
@@ -106,7 +111,12 @@ export const EmailVerification: React.FC = () => {
                                 font: 'inherit',
                             }}
                         >
-                            {isResending ? 'Sending...' : 'Resend'}
+                            {isResending ? (
+                                <span className="loading-text">
+                                    <div className="spinner" style={{ borderTopColor: 'var(--primary-start)', borderColor: 'rgba(79, 70, 229, 0.3)' }}></div>
+                                    Sending...
+                                </span>
+                            ) : 'Resend'}
                         </button>
                     </p>
                 </div>

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { validators } from '@/utils/validators';
 import { UserRole } from '@/types';
+import toast from 'react-hot-toast';
 import '@/styles/components.css';
 
 export const RegisterForm: React.FC = () => {
@@ -59,7 +60,16 @@ export const RegisterForm: React.FC = () => {
                 role: formData.role,
             });
 
-            navigate('/verify-email');
+            // Show success message instead of redirecting to OTP page
+            toast.success('Registration successful! Please check your mailbox to verify your email address.', {
+                duration: 5000,
+                icon: '📧',
+            });
+
+            // Redirect to login after a short delay
+            setTimeout(() => {
+                navigate('/login');
+            }, 3000);
         } catch (error) {
             console.error('Registration error:', error);
         } finally {
@@ -177,7 +187,12 @@ export const RegisterForm: React.FC = () => {
                         style={{ width: '100%', marginTop: '1rem' }}
                         disabled={isLoading}
                     >
-                        {isLoading ? 'Creating Account...' : 'Create Account'}
+                        {isLoading ? (
+                            <span className="loading-text">
+                                <div className="spinner"></div>
+                                Creating Account...
+                            </span>
+                        ) : 'Create Account'}
                     </button>
                 </form>
 

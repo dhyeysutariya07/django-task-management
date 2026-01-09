@@ -143,7 +143,12 @@ export const LoginForm: React.FC = () => {
                         style={{ width: '100%', marginTop: '1rem' }}
                         disabled={isLoading}
                     >
-                        {isLoading ? 'Signing in...' : 'Sign In'}
+                        {isLoading ? (
+                            <span className="loading-text">
+                                <div className="spinner"></div>
+                                Signing in...
+                            </span>
+                        ) : 'Sign In'}
                     </button>
                 </form>
 

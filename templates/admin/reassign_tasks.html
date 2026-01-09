@@ -1,10 +1,20 @@
 {% extends "admin/base_site.html" %}
+
 {% block content %}
-  <h1>{{ title }}</h1>
-  <form method="post">
-      {% csrf_token %}
-      {{ form.as_p }}
-      <input type="submit" name="apply" value="Apply">
-      <input type="hidden" name="action" value="reassign_tasks">
-  </form>
+<h2>{{ title }}</h2>
+
+<form method="post">
+  {% csrf_token %}
+
+  {{ form.as_p }}
+
+  {% for task in tasks %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ task.pk }}">
+  {% endfor %}
+
+  <input type="hidden" name="action" value="reassign_tasks">
+  <input type="hidden" name="apply" value="yes">
+
+  <button type="submit" class="default">Reassign</button>
+</form>
 {% endblock %}

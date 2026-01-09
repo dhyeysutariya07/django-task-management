@@ -38,23 +38,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Load user on mount
     useEffect(() => {
+        const abortController = new AbortController();
+        let isMounted = true;
+
         const loadUser = async () => {
             const token = tokenManager.getAccessToken();
 
             if (token && !tokenManager.isTokenExpired()) {
                 try {
                     const currentUser = await authService.getCurrentUser();
-                    setUser(currentUser);
+                    if (isMounted && !abortController.signal.aborted) {
+                        setUser(currentUser);
+                    }
                 } catch (error) {
-                    console.error('Failed to load user:', error);
-                    tokenManager.clearTokens();
+                    if (!abortController.signal.aborted) {
+                        console.error('Failed to load user:', error);
+                        tokenManager.clearTokens();
+                    }
                 }
             }
 
-            setIsLoading(false);
+            if (isMounted) {
+                setIsLoading(false);
+            }
         };
 
         loadUser();
+
+        return () => {
+            isMounted = false;
+            abortController.abort();
+        };
     }, []);
 
     const login = async (credentials: LoginCredentials) => {

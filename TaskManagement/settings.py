@@ -149,22 +149,16 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
-    "DEFAULT_THROTTLE_CLASSES": (
-        "rest_framework.throttling.UserRateThrottle",
-    ),
-    "DEFAULT_THROTTLE_RATES": {
-        "user": "1000/day",           
-        "task_read": "5/min",        
-    },
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
     "EXCEPTION_HANDLER": "tasks.exceptions.custom_exception_handler",
-    "DEFAULT_THROTTLE_CLASSES": [
-        "tasks.throttles.RoleBasedThrottle",
-    ],
 }
+
 
 
 SPECTACULAR_SETTINGS = {

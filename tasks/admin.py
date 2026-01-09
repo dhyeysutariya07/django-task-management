@@ -2,8 +2,9 @@ import csv
 from datetime import timedelta
 
 from django.contrib import admin, messages
+from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.db.models import F, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django import forms
 from django.utils import timezone
@@ -13,6 +14,7 @@ from django.contrib.auth import get_user_model
 from .models import Task
 
 User = get_user_model()
+
 
 class TasksNeedingAttentionFilter(admin.SimpleListFilter):
     title = "Tasks Needing Attention"
@@ -24,13 +26,11 @@ class TasksNeedingAttentionFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         if self.value() == "yes":
             overdue_date = timezone.now().date() - timedelta(days=3)
-
             return queryset.filter(
-                Q(status=Task.Status.BLOCKED) |
-                Q(deadline__lt=overdue_date) |
-                Q(actual_hours__gt=F("estimated_hours") * 1.5)
+                Q(status=Task.Status.BLOCKED)
+                | Q(deadline__lt=overdue_date)
+                | Q(actual_hours__gt=F("estimated_hours") * 1.5)
             )
-
         return queryset
 
 
@@ -56,7 +56,6 @@ class TaskAdmin(admin.ModelAdmin):
         "reassign_tasks",
     ]
 
-
     def status_colored(self, obj):
         color_map = {
             Task.Status.PENDING: "#6c757d",
@@ -75,7 +74,6 @@ class TaskAdmin(admin.ModelAdmin):
         )
 
     status_colored.short_description = "Status"
-
 
     def generate_weekly_report(self, request, queryset):
         last_week = timezone.now() - timedelta(days=7)
@@ -122,8 +120,8 @@ class TaskAdmin(admin.ModelAdmin):
 
     generate_weekly_report.short_description = "Generate Weekly Report (CSV)"
 
-
     def reassign_tasks(self, request, queryset):
+
         class ReassignForm(forms.Form):
             new_user = forms.ModelChoiceField(
                 queryset=User.objects.all(),
@@ -131,7 +129,7 @@ class TaskAdmin(admin.ModelAdmin):
             )
 
         # STEP 1: Show form
-        if "apply" not in request.POST:
+        if request.POST.get("apply") != "yes":
             form = ReassignForm()
             return render(
                 request,
@@ -140,18 +138,23 @@ class TaskAdmin(admin.ModelAdmin):
                     "tasks": queryset,
                     "form": form,
                     "title": "Reassign selected tasks",
+                    "action_checkbox_name": ACTION_CHECKBOX_NAME,
                 },
             )
 
         # STEP 2: Process form
         form = ReassignForm(request.POST)
         if not form.is_valid():
-            self.message_user(request, "Invalid form submission.", messages.ERROR)
-            return
+            self.message_user(
+                request,
+                "Invalid form submission.",
+                messages.ERROR,
+            )
+            return HttpResponseRedirect(request.get_full_path())
 
         new_user = form.cleaned_data["new_user"]
 
-        # Count active tasks for warning
+        # Warning if user overloaded
         active_tasks = Task.objects.filter(
             assigned_to=new_user
         ).exclude(status=Task.Status.COMPLETED).count()
@@ -159,7 +162,7 @@ class TaskAdmin(admin.ModelAdmin):
         if active_tasks > 10:
             self.message_user(
                 request,
-                f"⚠ Warning: {new_user.username} already has {active_tasks} active tasks.",
+                f"Warning: {new_user.username} already has {active_tasks} active tasks.",
                 messages.WARNING,
             )
 
@@ -170,5 +173,7 @@ class TaskAdmin(admin.ModelAdmin):
             f"{updated_count} tasks reassigned to {new_user.username}.",
             messages.SUCCESS,
         )
+
+        return HttpResponseRedirect(request.get_full_path())
 
     reassign_tasks.short_description = "Reassign Tasks"

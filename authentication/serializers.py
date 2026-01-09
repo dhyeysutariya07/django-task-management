@@ -57,7 +57,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         sessions = UserSession.objects.filter(user=user)
 
         if sessions.count() >= 3:
-            raise PermissionDenied("Maximum 3 active sessions allowed.")
+            oldest_session = sessions.first()
+            oldest_session.delete()
 
         UserSession.objects.create(
             user=user,
