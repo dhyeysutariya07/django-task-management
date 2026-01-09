@@ -26,14 +26,12 @@ class AuditLoggingMiddleware(MiddlewareMixin):
         if request.path.startswith("/api/tasks/analytics/"):
             return response
 
-        # Only API requests
         if not request.path.startswith("/api/"):
             return response
 
         request_body = None
         response_body = None
 
-        # Log request body for write methods
         if request.method in ("POST", "PUT", "PATCH"):
             try:
                 raw_body = request.body.decode("utf-8")

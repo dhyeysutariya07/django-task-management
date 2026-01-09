@@ -12,9 +12,6 @@ def next_priority(current):
     except ValueError:
         return current
 
-# -----------------------------
-# Cascading Status Updates
-# -----------------------------
 @receiver(pre_save, sender=Task)
 def handle_cascading_status(sender, instance, **kwargs):
     if not instance.pk:
@@ -23,7 +20,7 @@ def handle_cascading_status(sender, instance, **kwargs):
     previous = Task.objects.get(pk=instance.pk)
     user = getattr(instance, "_changed_by", None)  # optional: set from serializer context
 
-    # 1️⃣ Parent completed → child tasks
+    # Parent completed → child tasks
     if previous.status != Task.Status.COMPLETED and instance.status == Task.Status.COMPLETED:
         for child in instance.children.all():
             if child.status == Task.Status.PENDING:
@@ -42,7 +39,7 @@ def handle_cascading_status(sender, instance, **kwargs):
                     f"Cannot complete parent task because child task {child.id} is {child.status}"
                 )
 
-    # 2️⃣ Child blocked → parent blocked
+    # Child blocked → parent blocked
     if previous.status != Task.Status.BLOCKED and instance.status == Task.Status.BLOCKED:
         if instance.parent_task and instance.parent_task.status != Task.Status.BLOCKED:
             parent = instance.parent_task
@@ -57,9 +54,6 @@ def handle_cascading_status(sender, instance, **kwargs):
                 notes=f"Parent blocked because child task {instance.id} is blocked"
             )
 
-# -----------------------------
-# Dynamic Priority Escalation
-# -----------------------------
 @receiver(pre_save, sender=Task)
 def auto_escalate_priority(sender, instance, **kwargs):
     if instance.status == Task.Status.COMPLETED:

@@ -11,4 +11,5 @@ dependencies = [
     "drf-spectacular>=0.29.0",
     "psycopg[binary]>=3.3.2",
     "pytz>=2025.2",
+    "python-dotenv>=1.0.0",
 ]

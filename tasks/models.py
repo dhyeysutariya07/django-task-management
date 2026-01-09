@@ -24,7 +24,7 @@ class Task(models.Model):
         HIGH = "high", "High"
         CRITICAL = "critical", "Critical"
 
-    # ⚠ No explicit ID → Django auto-creates Integer PK
+    # NOTE: No explicit ID - Django auto-creates Integer PK
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
 

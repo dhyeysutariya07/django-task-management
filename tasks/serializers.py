@@ -89,7 +89,7 @@ class TaskWriteSerializer(serializers.ModelSerializer):
         user = request.user
         tags_data = validated_data.pop("tags", [])
 
-        # 🔒 FORCE assignment rules
+        # FORCE assignment rules
         if user.role == "developer":
             validated_data["assigned_to"] = user
         elif user.role == "manager":
@@ -113,7 +113,7 @@ class TaskWriteSerializer(serializers.ModelSerializer):
         tags_data = validated_data.pop("tags", None)
         new_status = validated_data.get("status", instance.status)
 
-        # 🔒 FORCE assignment rules on update
+        #  FORCE assignment rules on update
         if user.role == "developer":
             validated_data["assigned_to"] = user
         elif user.role == "manager":
