@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { useTasksQuery } from '@/hooks/useTasks';
+import { useTasksQuery, useBulkUpdateMutation } from '@/hooks/useTasks';
 import { Task, TaskStatus, TaskPriority } from '@/types';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { TaskDetailsModal } from './TaskDetailsModal';
 import { CreateTaskModal } from './CreateTaskModal';
+import { BulkActionToolbar } from './BulkActionToolbar';
 import { useAuth } from '@/contexts/AuthContext';
 import { dateUtils } from '@/utils/dateUtils';
 import '@/styles/components.css';
@@ -13,23 +14,187 @@ export const TaskList: React.FC = () => {
     const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+    const [expandedParents, setExpandedParents] = useState<Set<number>>(new Set());
 
     const { hasRole } = useAuth();
-    const canCreateTask = !hasRole('auditor'); // Auditors cannot create tasks
+    const canCreateTask = !hasRole('auditor');
 
-    // Fetch all tasks without backend filtering
     const { data: allTasks, isLoading, error, refetch } = useTasksQuery();
+    const bulkUpdateMutation = useBulkUpdateMutation();
 
     // Client-side filtering
-    const tasks = useMemo(() => {
+    const filteredTasks = useMemo(() => {
         if (!allTasks) return [];
-
         return allTasks.filter(task => {
             const matchesStatus = !statusFilter || task.status === statusFilter;
             const matchesPriority = !priorityFilter || task.priority === priorityFilter;
             return matchesStatus && matchesPriority;
         });
     }, [allTasks, statusFilter, priorityFilter]);
+
+    // Organize tasks by parent-child relationship
+    const { parentTasks, childTasksByParent } = useMemo(() => {
+        const parents: Task[] = [];
+        const children: Map<number, Task[]> = new Map();
+
+        filteredTasks.forEach(task => {
+            if (task.parent_task) {
+                const siblings = children.get(task.parent_task) || [];
+                siblings.push(task);
+                children.set(task.parent_task, siblings);
+            } else {
+                parents.push(task);
+            }
+        });
+
+        return { parentTasks: parents, childTasksByParent: children };
+    }, [filteredTasks]);
+
+    const handleSelectTask = (taskId: number) => {
+        const newSelected = new Set(selectedTaskIds);
+        if (newSelected.has(taskId)) {
+            newSelected.delete(taskId);
+        } else {
+            newSelected.add(taskId);
+        }
+        setSelectedTaskIds(newSelected);
+    };
+
+    const handleSelectAll = () => {
+        if (selectedTaskIds.size === filteredTasks.length) {
+            setSelectedTaskIds(new Set());
+        } else {
+            setSelectedTaskIds(new Set(filteredTasks.map(t => t.id)));
+        }
+    };
+
+    const handleBulkUpdate = async (status: TaskStatus) => {
+        try {
+            await bulkUpdateMutation.mutateAsync({
+                task_ids: Array.from(selectedTaskIds),
+                updates: { status },
+            });
+            setSelectedTaskIds(new Set());
+            refetch();
+        } catch (error) {
+            console.error('Bulk update failed:', error);
+        }
+    };
+
+    const toggleParentExpand = (parentId: number) => {
+        const newExpanded = new Set(expandedParents);
+        if (newExpanded.has(parentId)) {
+            newExpanded.delete(parentId);
+        } else {
+            newExpanded.add(parentId);
+        }
+        setExpandedParents(newExpanded);
+    };
+
+    const renderTask = (task: Task, isChild: boolean = false) => {
+        const isSelected = selectedTaskIds.has(task.id);
+        const children = childTasksByParent.get(task.id) || [];
+        const hasChildren = children.length > 0;
+        const isExpanded = expandedParents.has(task.id);
+
+        return (
+            <React.Fragment key={task.id}>
+                <div
+                    className="card"
+                    style={{
+                        padding: '1rem',
+                        marginBottom: '0.75rem',
+                        marginLeft: isChild ? '2rem' : '0',
+                        borderLeft: isChild ? '3px solid var(--primary)' : 'none',
+                        background: isSelected ? 'rgba(139, 92, 246, 0.1)' : undefined,
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                        {/* Checkbox */}
+                        <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectTask(task.id)}
+                            style={{
+                                width: '18px',
+                                height: '18px',
+                                cursor: 'pointer',
+                                marginTop: '0.25rem',
+                            }}
+                        />
+
+                        {/* Expand/Collapse for parent tasks */}
+                        {hasChildren && (
+                            <button
+                                onClick={() => toggleParentExpand(task.id)}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '1.2rem',
+                                    padding: 0,
+                                    marginTop: '0.25rem',
+                                }}
+                            >
+                                {isExpanded ? '📂' : '📁'}
+                            </button>
+                        )}
+
+                        {/* Task Content */}
+                        <div
+                            style={{ flex: 1, cursor: 'pointer' }}
+                            onClick={() => setSelectedTask(task)}
+                        >
+                            {/* Title with parent/child indicator */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                {hasChildren && <span style={{ fontSize: '0.875rem' }}>👥</span>}
+                                {isChild && <span style={{ fontSize: '0.875rem' }}>🔗</span>}
+                                <h3 style={{ margin: 0, fontWeight: hasChildren ? 'bold' : '500' }}>
+                                    {task.title}
+                                </h3>
+                                {hasChildren && (
+                                    <span
+                                        style={{
+                                            fontSize: '0.75rem',
+                                            background: 'var(--bg-secondary)',
+                                            padding: '0.25rem 0.5rem',
+                                            borderRadius: 'var(--radius-full)',
+                                        }}
+                                    >
+                                        {children.length} child{children.length !== 1 ? 'ren' : ''}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Status and Priority Badges */}
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <span className={`badge badge-${task.status}`}>
+                                    {task.status.replace('_', ' ')}
+                                </span>
+                                <span className={`badge badge-${task.priority}`}>
+                                    {task.priority}
+                                </span>
+                            </div>
+
+                            {/* Metadata */}
+                            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                                <span>👤 {task.assigned_to}</span>
+                                {task.deadline && (
+                                    <span style={{ color: dateUtils.isOverdue(task.deadline) ? 'var(--danger)' : undefined }}>
+                                        📅 {dateUtils.getTimeUntilDeadline(task.deadline)}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Render children if expanded */}
+                {hasChildren && isExpanded && children.map(child => renderTask(child, true))}
+            </React.Fragment>
+        );
+    };
 
     if (isLoading) {
         return (
@@ -44,180 +209,81 @@ export const TaskList: React.FC = () => {
             <div className="empty-state">
                 <div className="empty-state-icon">⚠️</div>
                 <h2 className="empty-state-title">Error Loading Tasks</h2>
-                <p className="empty-state-description">
-                    Failed to load tasks. Please try again later.
-                </p>
+                <p className="empty-state-description">Failed to load tasks. Please try again later.</p>
             </div>
         );
     }
 
-    const getPriorityClass = (priority: TaskPriority) => {
-        return `priority-badge priority-${priority}`;
-    };
-
-    const getStatusClass = (status: TaskStatus) => {
-        return `status-badge status-${status.replace('_', '-')}`;
-    };
-
     return (
-        <div style={{ padding: '2rem' }}>
+        <div style={{ padding: '2rem', paddingBottom: '6rem' }}>
             <div style={{ marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h1 style={{ margin: 0 }}>Tasks</h1>
-                    {canCreateTask && (
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => setShowCreateModal(true)}
-                        >
-                            + Create Task
-                        </button>
-                    )}
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        {canCreateTask && (
+                            <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+                                + Create Task
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {/* Filters */}
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <div>
-                        <label className="form-label" htmlFor="status-filter">Status</label>
-                        <select
-                            id="status-filter"
-                            className="form-select"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value as TaskStatus | '')}
-                            style={{ minWidth: '150px' }}
-                        >
-                            <option value="">All Statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="blocked">Blocked</option>
-                            <option value="completed">Completed</option>
-                        </select>
-                    </div>
+                {/* Filters and Select All */}
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                        <input
+                            type="checkbox"
+                            checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0}
+                            onChange={handleSelectAll}
+                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontWeight: 'bold' }}>Select All</span>
+                    </label>
 
-                    <div>
-                        <label className="form-label" htmlFor="priority-filter">Priority</label>
-                        <select
-                            id="priority-filter"
-                            className="form-select"
-                            value={priorityFilter}
-                            onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | '')}
-                            style={{ minWidth: '150px' }}
-                        >
-                            <option value="">All Priorities</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
-                        </select>
-                    </div>
+                    <select
+                        className="form-select"
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value as TaskStatus | '')}
+                        style={{ flex: 1 }}
+                    >
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="completed">Completed</option>
+                    </select>
 
-                    {(statusFilter || priorityFilter) && (
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => {
-                                setStatusFilter('');
-                                setPriorityFilter('');
-                            }}
-                            style={{ alignSelf: 'flex-end' }}
-                        >
-                            Clear Filters
-                        </button>
-                    )}
+                    <select
+                        className="form-select"
+                        value={priorityFilter}
+                        onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | '')}
+                        style={{ flex: 1 }}
+                    >
+                        <option value="">All Priorities</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
                 </div>
             </div>
 
             {/* Task List */}
-            {!tasks || tasks.length === 0 ? (
+            {filteredTasks.length === 0 ? (
                 <div className="empty-state">
                     <div className="empty-state-icon">📋</div>
                     <h2 className="empty-state-title">No Tasks Found</h2>
                     <p className="empty-state-description">
                         {statusFilter || priorityFilter
-                            ? 'No tasks match your filters. Try adjusting your search.'
-                            : 'Get started by creating your first task.'}
+                            ? 'Try adjusting your filters'
+                            : 'Create your first task to get started'}
                     </p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                    {tasks.map((task) => (
-                        <div
-                            key={task.id}
-                            className="card"
-                            style={{ padding: '1.5rem', cursor: 'pointer', transition: 'transform 0.2s' }}
-                            onClick={() => setSelectedTask(task)}
-                            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
-                            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                                <div style={{ flex: 1 }}>
-                                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem' }}>{task.title}</h3>
-                                    <p className="text-muted" style={{ margin: 0, fontSize: '0.875rem' }}>
-                                        {task.description}
-                                    </p>
-                                </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', marginLeft: '1rem' }}>
-                                    <span className={getPriorityClass(task.priority)}>
-                                        {task.priority}
-                                    </span>
-                                    <span className={getStatusClass(task.status)}>
-                                        {task.status.replace('_', ' ')}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', fontSize: '0.875rem' }}>
-                                <div>
-                                    <span className="text-muted">Assigned to:</span>{' '}
-                                    <span>{task.assigned_to}</span>
-                                </div>
-                                <div>
-                                    <span className="text-muted">Created by:</span>{' '}
-                                    <span>{task.created_by}</span>
-                                </div>
-                                {task.deadline && (
-                                    <div>
-                                        <span className="text-muted">Deadline:</span>{' '}
-                                        <span style={{ color: dateUtils.isOverdue(task.deadline) ? 'var(--danger)' : 'inherit' }}>
-                                            {dateUtils.getTimeUntilDeadline(task.deadline)}
-                                        </span>
-                                    </div>
-                                )}
-                                {task.estimated_hours && (
-                                    <div>
-                                        <span className="text-muted">Estimated:</span>{' '}
-                                        <span>{task.estimated_hours}h</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {task.tags && task.tags.length > 0 && (
-                                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                    {task.tags.map((tag) => (
-                                        <span
-                                            key={tag.id}
-                                            className="badge badge-primary"
-                                            style={{ fontSize: '0.75rem' }}
-                                        >
-                                            {tag.name}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+                <div>{parentTasks.map(task => renderTask(task))}</div>
             )}
 
-            {/* Task Count */}
-            {tasks && tasks.length > 0 && (
-                <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
-                    <p className="text-muted">
-                        Showing {tasks.length} of {allTasks?.length || 0} task{tasks.length !== 1 ? 's' : ''}
-                        {(statusFilter || priorityFilter) && ' (filtered)'}
-                    </p>
-                </div>
-            )}
-
-            {/* Task Details Modal */}
+            {/* Modals */}
             {selectedTask && (
                 <TaskDetailsModal
                     task={selectedTask}
@@ -234,7 +300,6 @@ export const TaskList: React.FC = () => {
                 />
             )}
 
-            {/* Create Task Modal */}
             <CreateTaskModal
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
@@ -242,6 +307,14 @@ export const TaskList: React.FC = () => {
                     refetch();
                     setShowCreateModal(false);
                 }}
+            />
+
+            {/* Bulk Action Toolbar */}
+            <BulkActionToolbar
+                selectedCount={selectedTaskIds.size}
+                onClearSelection={() => setSelectedTaskIds(new Set())}
+                onBulkUpdate={handleBulkUpdate}
+                isUpdating={bulkUpdateMutation.isPending}
             />
         </div>
     );

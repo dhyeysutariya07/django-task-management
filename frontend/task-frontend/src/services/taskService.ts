@@ -58,7 +58,17 @@ export const taskService = {
    * Bulk update tasks
    */
   async bulkUpdateTasks(data: BulkUpdateRequest): Promise<BulkUpdateResponse> {
-    const response = await api.put('/tasks/bulk-update/', data);
+    console.log('Bulk update request:', data);
+    
+    // The backend expects: { task_ids: [...], status: "..." }
+    // Not { task_ids: [...], updates: { status: "..." } }
+    const payload = {
+      task_ids: data.task_ids,
+      status: data.updates.status,
+    };
+    
+    console.log('Sending bulk update payload:', payload);
+    const response = await api.put('/tasks/bulk-update/', payload);
     return response.data;
   },
 

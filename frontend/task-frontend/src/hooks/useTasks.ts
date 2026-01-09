@@ -109,9 +109,12 @@ export const useBulkUpdateMutation = () => {
 
   return useMutation({
     mutationFn: (data: BulkUpdateRequest) => taskService.bulkUpdateTasks(data),
-    onSuccess: (result) => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success(`${result.updated} tasks updated successfully!`);
+      
+      // Use the count from response if available, otherwise use the request count
+      const count = (result as any)?.updated_count || variables.task_ids.length;
+      toast.success(`${count} task${count !== 1 ? 's' : ''} updated successfully!`);
     },
     onError: (error: any) => {
       const message = error.response?.data?.message || 'Bulk update failed';
