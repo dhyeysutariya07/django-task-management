@@ -1,13 +1,23 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.generics import CreateAPIView
-
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import IsAuthenticated
 from authentication.models import User
-from authentication.serializers import RegisterSerializer
+from authentication.serializers import CustomTokenObtainPairSerializer, RegisterSerializer, UserMinimalSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils.timezone import now
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import AccessToken
+
+from .models import UserSession
+
 
     
 class LogoutView(APIView):
@@ -61,3 +71,46 @@ class VerifyEmailView(APIView):
             {"message": "Email verified successfully"},
             status=status.HTTP_200_OK
         )
+    
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+class MeView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        token = request.auth  
+
+        UserSession.objects.filter(
+            user=user,
+            user_agent=request.META.get("HTTP_USER_AGENT", "")
+        ).update(last_seen=now())
+
+        response = Response({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": getattr(user, "role", None),
+        })
+
+        exp_timestamp = token["exp"]
+        remaining_seconds = exp_timestamp - int(now().timestamp())
+
+        if remaining_seconds <= 120:  # last 2 minutes
+            new_token = AccessToken.for_user(user)
+            response["X-New-Access-Token"] = str(new_token)
+
+        return response
+    
+class ManagerDeveloperListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        users = User.objects.filter(
+            role__in=["manager", "developer"]
+        ).order_by("username")
+
+        serializer = UserMinimalSerializer(users, many=True)
+        return Response(serializer.data)

@@ -1,3 +1,4 @@
+from datetime import timedelta, timezone
 from django.conf import settings
 from django.db import models
 
@@ -98,3 +99,40 @@ class TaskHistory(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True, null=True)
     priority_escalated = models.BooleanField(default=False)
+
+
+class APIAuditLog(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL
+    )
+    endpoint = models.CharField(max_length=255)
+    method = models.CharField(max_length=10)
+    status_code = models.PositiveIntegerField()
+    request_body = models.JSONField(null=True, blank=True)
+    response_body = models.JSONField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.method} {self.endpoint} [{self.status_code}]"
+    
+
+class FailedAuthAttempt(models.Model):
+    ip_address = models.GenericIPAddressField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class BlockedIP(models.Model):
+    ip_address = models.GenericIPAddressField(unique=True)
+    captcha_question = models.CharField(max_length=100)
+    captcha_answer = models.IntegerField()
+    blocked_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() > self.blocked_at + timedelta(hours=1)

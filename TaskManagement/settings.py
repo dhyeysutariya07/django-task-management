@@ -48,22 +48,37 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "tasks",
-    "notifications"
+    "notifications",
+
+    "corsheaders",
 
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+
+    'corsheaders.middleware.CorsMiddleware',
+
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
-    'tasks.middlewares.PriorityEscalationMiddleware',
-    "tasks.middlewares.SuccessfulRequestCountingMiddleware",
+    'django.middleware.csrf.CsrfViewMiddleware',
+
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'tasks.middlewares.silent_refresh.SilentRefreshMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+
+    'tasks.middlewares.security.SmartSecurityMiddleware',
+
+    'tasks.middlewares.middlewares.PriorityEscalationMiddleware',
+    'tasks.middlewares.middlewares.SuccessfulRequestCountingMiddleware',
+
+    'tasks.middlewares.audit_logging.AuditLoggingMiddleware',
+
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+
 
 ROOT_URLCONF = 'TaskManagement.urls'
 
@@ -73,7 +88,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR/'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -103,6 +118,14 @@ DATABASES = {
     }
 }
 
+CORS_ALLOW_ALL_ORIGINS = True  # DEV ONLY
+
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -133,8 +156,8 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
-        "user": "1000/day",           # default rate for normal users
-        "task_read": "5/min",         # used by AuditorReadBypassThrottle
+        "user": "1000/day",           
+        "task_read": "5/min",        
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     "EXCEPTION_HANDLER": "tasks.exceptions.custom_exception_handler",
@@ -158,6 +181,7 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
     "BLACKLIST_AFTER_ROTATION": True,
     "ROTATE_REFRESH_TOKENS": True,
+    "UPDATE_LAST_LOGIN": True,
 }
 
 # Mail Settings
