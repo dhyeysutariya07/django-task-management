@@ -87,8 +87,8 @@ A full-stack task management application built with Django REST Framework and Re
 
 Once the backend server is running, access the interactive API documentation:
 
-- **Swagger UI**: `http://localhost:8000/api/schema/swagger-ui/`
-- **ReDoc**: `http://localhost:8000/api/schema/redoc/`
+- **Swagger UI**: `http://localhost:8000/api/docs`
+- **ReDoc**: `http://localhost:8000/api/redoc/`
 
 ## User Roles
 
